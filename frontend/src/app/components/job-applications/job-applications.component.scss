@@ -1,0 +1,405 @@
+.job-applications-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 30px 20px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+    h1 {
+        font-size: 2.5rem;
+        color: #1a73e8;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+        color: #202124;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #e8eaed;
+        padding-bottom: 10px;
+    }
+}
+
+.extraction-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    color: white;
+
+    h2 {
+        color: white;
+        border-bottom-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .extraction-help {
+        margin-bottom: 15px;
+        opacity: 0.95;
+        font-size: 0.95rem;
+    }
+
+    .extraction-form {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+
+        @media (max-width: 768px) {
+            flex-direction: column;
+        }
+
+        .url-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            font-size: 1rem;
+            background: rgba(255, 255, 255, 0.95);
+            color: #202124;
+
+            &:focus {
+                outline: none;
+                border-color: white;
+                box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+            }
+
+            &:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+            &::placeholder {
+                color: #999;
+            }
+        }
+
+        .btn {
+            padding: 12px 25px;
+            white-space: nowrap;
+
+            @media (max-width: 768px) {
+                width: 100%;
+            }
+        }
+    }
+
+    .alert {
+        margin: 0;
+    }
+}
+
+.form-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+    form {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+
+        label {
+            font-weight: 600;
+            color: #202124;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+
+        .form-control {
+            padding: 12px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.2s ease;
+
+            &:focus {
+                outline: none;
+                border-color: #1a73e8;
+                box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+            }
+
+            &:hover {
+                border-color: #aeb0b7;
+            }
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 80px;
+        }
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+    }
+}
+
+.filter-section {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+    .filter-controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+
+        @media (max-width: 768px) {
+            grid-template-columns: 1fr;
+        }
+
+        .form-control {
+            padding: 12px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 1rem;
+
+            &:focus {
+                outline: none;
+                border-color: #1a73e8;
+                box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+            }
+        }
+    }
+}
+
+.table-section {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    overflow-x: auto;
+
+    .no-data {
+        text-align: center;
+        padding: 40px 20px;
+        color: #80868b;
+        font-size: 1.1rem;
+    }
+}
+
+.jobs-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+
+    thead {
+        background: #f8f9fa;
+        border-bottom: 2px solid #dadce0;
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #202124;
+            font-size: 0.95rem;
+            white-space: nowrap;
+        }
+    }
+
+    tbody {
+        tr {
+            border-bottom: 1px solid #e8eaed;
+            transition: background-color 0.2s ease;
+
+            &:hover {
+                background-color: #f8f9fa;
+            }
+
+            &:last-child {
+                border-bottom: none;
+            }
+
+            td {
+                padding: 15px;
+                color: #202124;
+                font-size: 0.95rem;
+
+                &.actions {
+                    display: flex;
+                    gap: 8px;
+                    white-space: nowrap;
+                }
+            }
+        }
+    }
+}
+
+.badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+
+    &.badge-remote {
+        background-color: #e8f0fe;
+        color: #1a73e8;
+    }
+
+    &.badge-on-site {
+        background-color: #fef7e0;
+        color: #d97706;
+    }
+
+    &.badge-hybrid {
+        background-color: #f3e5ab;
+        color: #92400e;
+    }
+
+    &.badge-applied {
+        background-color: #e6f4ea;
+        color: #188038;
+    }
+
+    &.badge-in\ progress {
+        background-color: #fef7e0;
+        color: #d97706;
+    }
+
+    &.badge-interview {
+        background-color: #e8f0fe;
+        color: #1a73e8;
+    }
+
+    &.badge-offer {
+        background-color: #e6f4ea;
+        color: #188038;
+    }
+
+    &.badge-rejected {
+        background-color: #fce8e6;
+        color: #d33b27;
+    }
+}
+
+.link {
+    color: #1a73e8;
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 500;
+
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+.btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    &:active {
+        transform: translateY(0);
+    }
+
+    &.btn-primary {
+        background-color: #1a73e8;
+        color: white;
+
+        &:hover {
+            background-color: #1665cc;
+        }
+    }
+
+    &.btn-secondary {
+        background-color: #f8f9fa;
+        color: #202124;
+        border: 1px solid #dadce0;
+
+        &:hover {
+            background-color: #f1f3f4;
+        }
+    }
+
+    &.btn-info {
+        background-color: #1a73e8;
+        color: white;
+        padding: 6px 12px;
+        font-size: 0.9rem;
+
+        &:hover {
+            background-color: #1665cc;
+        }
+    }
+
+    &.btn-danger {
+        background-color: #d33b27;
+        color: white;
+        padding: 6px 12px;
+        font-size: 0.9rem;
+
+        &:hover {
+            background-color: #b8281f;
+        }
+    }
+
+    &.btn-sm {
+        padding: 6px 12px;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .job-applications-container {
+        padding: 20px 10px;
+
+        h1 {
+            font-size: 2rem;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+        }
+    }
+
+    .form-section {
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .jobs-table {
+        font-size: 0.85rem;
+
+        thead th,
+        tbody td {
+            padding: 10px;
+        }
+    }
+
+    .btn {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+    }
+}

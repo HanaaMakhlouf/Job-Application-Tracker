@@ -1,0 +1,141 @@
+<div class="job-applications-container">
+    <h1>Job Application Tracker</h1>
+
+    <!-- URL Extraction Section -->
+    <div class="extraction-section">
+        <h2>📋 Quick Add Job</h2>
+        <p class="extraction-help">
+            <strong>Option 1:</strong> Paste a job link and we'll prepare a form for you to fill in<br>
+            <strong>Option 2:</strong> Manually fill in the job details below
+        </p>
+        <div class="extraction-form">
+            <input type="url" [(ngModel)]="jobUrl" name="jobUrl"
+                placeholder="Paste job link here (LinkedIn, Indeed, company site, etc.)" class="form-control url-input"
+                [disabled]="isExtracting" />
+            <button type="button" (click)="extractJobInfo()" class="btn btn-primary"
+                [disabled]="isExtracting || !jobUrl.trim()">
+                {{ isExtracting ? 'Preparing form...' : 'Prepare Form' }}
+            </button>
+        </div>
+        <div *ngIf="extractionError" class="alert alert-warning">
+            ⚠️ {{ extractionError }}
+        </div>
+    </div>
+
+    <!-- Form Section -->
+    <div class="form-section">
+        <h2>{{ isEditing ? 'Edit Job Application' : 'Add New Job Application' }}</h2>
+        <form (ngSubmit)="addJob()" #jobForm="ngForm">
+            <div class="form-group">
+                <label for="jobTitle">Job Title *</label>
+                <input type="text" id="jobTitle" name="jobTitle" [(ngModel)]="newJob.jobTitle" required
+                    class="form-control" />
+            </div>
+
+            <div class="form-group">
+                <label for="companyName">Company Name *</label>
+                <input type="text" id="companyName" name="companyName" [(ngModel)]="newJob.companyName" required
+                    class="form-control" />
+            </div>
+
+            <div class="form-group">
+                <label for="jobLink">Job Link</label>
+                <input type="url" id="jobLink" name="jobLink" [(ngModel)]="newJob.jobLink" class="form-control" />
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" [(ngModel)]="newJob.description" class="form-control"
+                    rows="3"></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="location">Location</label>
+                    <input type="text" id="location" name="location" [(ngModel)]="newJob.location"
+                        class="form-control" />
+                </div>
+
+                <div class="form-group">
+                    <label for="workType">Work Type</label>
+                    <select id="workType" name="workType" [(ngModel)]="newJob.workType" class="form-control">
+                        <option *ngFor="let type of workTypes" [value]="type">{{ type }}</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="applicationStatus">Application Status</label>
+                    <select id="applicationStatus" name="applicationStatus" [(ngModel)]="newJob.applicationStatus"
+                        class="form-control">
+                        <option *ngFor="let status of applicationStatuses" [value]="status">{{ status }}</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="notes">Notes</label>
+                <textarea id="notes" name="notes" [(ngModel)]="newJob.notes" class="form-control" rows="2"></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">{{ isEditing ? 'Update' : 'Add' }} Job</button>
+                <button type="button" (click)="resetForm()" class="btn btn-secondary" *ngIf="isEditing">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="filter-section">
+        <h2>Filter Jobs</h2>
+        <div class="filter-controls">
+            <input type="text" placeholder="Search by job title or company..." [(ngModel)]="filterText"
+                (input)="onFilterChange()" class="form-control" />
+            <select [(ngModel)]="filterStatus" (change)="onFilterChange()" class="form-control">
+                <option value="">All Statuses</option>
+                <option *ngFor="let status of applicationStatuses" [value]="status">{{ status }}</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Table Section -->
+    <div class="table-section">
+        <h2>Your Job Applications ({{ filteredJobs.length }})</h2>
+        <div *ngIf="filteredJobs.length === 0" class="no-data">
+            <p>No job applications found. Start by adding a new one!</p>
+        </div>
+        <table *ngIf="filteredJobs.length > 0" class="jobs-table">
+            <thead>
+                <tr>
+                    <th>Job Title</th>
+                    <th>Company Name</th>
+                    <th>Location</th>
+                    <th>Work Type</th>
+                    <th>Status</th>
+                    <th>Job Link</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let job of filteredJobs">
+                    <td>{{ job.jobTitle }}</td>
+                    <td>{{ job.companyName }}</td>
+                    <td>{{ job.location }}</td>
+                    <td><span class="badge" [ngClass]="'badge-' + (job.workType | lowercase)">{{ job.workType }}</span>
+                    </td>
+                    <td><span class="badge" [ngClass]="'badge-' + (job.applicationStatus | lowercase)">{{
+                            job.applicationStatus }}</span></td>
+                    <td>
+                        <a *ngIf="job.jobLink" [href]="job.jobLink" target="_blank" class="link">View</a>
+                        <span *ngIf="!job.jobLink">-</span>
+                    </td>
+                    <td>{{ (job.notes | slice:0:30) }}{{ (job.notes && job.notes.length > 30) ? '...' : '' }}</td>
+                    <td class="actions">
+                        <button (click)="editJob(job)" class="btn btn-sm btn-info">Edit</button>
+                        <button (click)="deleteJob(job.id)" class="btn btn-sm btn-danger">Delete</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
