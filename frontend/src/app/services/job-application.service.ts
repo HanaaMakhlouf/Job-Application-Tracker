@@ -7,7 +7,7 @@ import { JobApplication } from '../models/job-application.model';
     providedIn: 'root'
 })
 export class JobApplicationService {
-    private apiUrl = 'http://localhost:5002/api/jobs'; // Will connect to C# backend
+    private readonly apiUrl = 'http://localhost:5000/api/jobs';
 
     constructor(private http: HttpClient) { }
 
