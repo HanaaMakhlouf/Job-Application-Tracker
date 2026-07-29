@@ -5,9 +5,7 @@ namespace JobApplicationTracker.Data;
 
 public class ApplicationDbContext : DbContext
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
-    {
-    }
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
     public DbSet<JobApplication> JobApplications { get; set; }
 
@@ -19,6 +17,7 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasMaxLength(50);
+            entity.Property(e => e.UserId).HasMaxLength(36).IsRequired();
             entity.Property(e => e.JobTitle).HasMaxLength(500);
             entity.Property(e => e.CompanyName).HasMaxLength(300);
             entity.Property(e => e.JobLink).HasMaxLength(2000);

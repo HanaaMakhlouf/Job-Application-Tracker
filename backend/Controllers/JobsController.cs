@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using JobApplicationTracker.Data;
@@ -6,6 +8,7 @@ using JobApplicationTracker.Services;
 
 namespace JobApplicationTracker.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class JobsController : ControllerBase
@@ -21,12 +24,18 @@ public class JobsController : ControllerBase
         _logger = logger;
     }
 
+    private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? throw new UnauthorizedAccessException();
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<JobApplication>>> GetAll()
     {
         try
         {
-            var jobs = await _context.JobApplications.OrderByDescending(j => j.CreatedDate).ToListAsync();
+            var jobs = await _context.JobApplications
+                .Where(j => j.UserId == UserId)
+                .OrderByDescending(j => j.CreatedDate)
+                .ToListAsync();
             return Ok(jobs);
         }
         catch (Exception ex)
@@ -41,10 +50,9 @@ public class JobsController : ControllerBase
     {
         try
         {
-            var job = await _context.JobApplications.FindAsync(id);
-            if (job == null)
-                return NotFound();
-
+            var job = await _context.JobApplications
+                .FirstOrDefaultAsync(j => j.Id == id && j.UserId == UserId);
+            if (job == null) return NotFound();
             return Ok(job);
         }
         catch (Exception ex)
@@ -63,6 +71,7 @@ public class JobsController : ControllerBase
                 return BadRequest("Job title and company name are required");
 
             job.Id = Guid.NewGuid().ToString();
+            job.UserId = UserId;
             job.CreatedDate = DateTime.UtcNow;
             job.UpdatedDate = DateTime.UtcNow;
 
@@ -83,23 +92,21 @@ public class JobsController : ControllerBase
     {
         try
         {
-            var existingJob = await _context.JobApplications.FindAsync(id);
-            if (existingJob == null)
-                return NotFound();
+            var existing = await _context.JobApplications
+                .FirstOrDefaultAsync(j => j.Id == id && j.UserId == UserId);
+            if (existing == null) return NotFound();
 
-            existingJob.JobTitle = job.JobTitle;
-            existingJob.CompanyName = job.CompanyName;
-            existingJob.JobLink = job.JobLink;
-            existingJob.Description = job.Description;
-            existingJob.Location = job.Location;
-            existingJob.WorkType = job.WorkType;
-            existingJob.ApplicationStatus = job.ApplicationStatus;
-            existingJob.Notes = job.Notes;
-            existingJob.UpdatedDate = DateTime.UtcNow;
+            existing.JobTitle = job.JobTitle;
+            existing.CompanyName = job.CompanyName;
+            existing.JobLink = job.JobLink;
+            existing.Description = job.Description;
+            existing.Location = job.Location;
+            existing.WorkType = job.WorkType;
+            existing.ApplicationStatus = job.ApplicationStatus;
+            existing.Notes = job.Notes;
+            existing.UpdatedDate = DateTime.UtcNow;
 
-            _context.JobApplications.Update(existingJob);
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
         catch (Exception ex)
@@ -114,13 +121,12 @@ public class JobsController : ControllerBase
     {
         try
         {
-            var job = await _context.JobApplications.FindAsync(id);
-            if (job == null)
-                return NotFound();
+            var job = await _context.JobApplications
+                .FirstOrDefaultAsync(j => j.Id == id && j.UserId == UserId);
+            if (job == null) return NotFound();
 
             _context.JobApplications.Remove(job);
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
         catch (Exception ex)
@@ -138,8 +144,8 @@ public class JobsController : ControllerBase
             if (string.IsNullOrEmpty(request.Url))
                 return BadRequest("URL is required");
 
-            var extractedData = await _scraperService.ExtractJobInfoAsync(request.Url);
-            return Ok(extractedData);
+            var data = await _scraperService.ExtractJobInfoAsync(request.Url);
+            return Ok(data);
         }
         catch (Exception ex)
         {
