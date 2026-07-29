@@ -1,6 +1,7 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using JobApplicationTracker.Models;
-using System.Text.RegularExpressions;
 
 namespace JobApplicationTracker.Services;
 
@@ -12,195 +13,195 @@ public interface IJobScraperService
 public class JobScraperService : IJobScraperService
 {
     private readonly HttpClient _httpClient;
+    private readonly ILogger<JobScraperService> _logger;
 
-    public JobScraperService(HttpClient httpClient)
+    public JobScraperService(HttpClient httpClient, ILogger<JobScraperService> logger)
     {
         _httpClient = httpClient;
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+        _logger = logger;
+        _httpClient.DefaultRequestHeaders.Add("User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+        _httpClient.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.5");
     }
 
     public async Task<JobExtractionResponse> ExtractJobInfoAsync(string url)
     {
         try
         {
-            var html = await FetchHtmlAsync(url);
+            var html = await _httpClient.GetStringAsync(url);
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
             var response = new JobExtractionResponse();
 
-            // Try to extract based on the job site
-            if (url.Contains("linkedin.com"))
-            {
-                ExtractFromLinkedIn(doc, response);
-            }
-            else if (url.Contains("indeed.com"))
-            {
-                ExtractFromIndeed(doc, response);
-            }
-            else if (url.Contains("glassdoor.com"))
-            {
-                ExtractFromGlassdoor(doc, response);
-            }
-            else
-            {
-                // Generic extraction for other job sites
-                ExtractGeneric(doc, response);
-            }
+            // 1. Try JSON-LD structured data (most reliable when present)
+            TryExtractJsonLd(doc, response);
 
-            // If extraction failed, use basic extraction
+            // 2. Try Open Graph meta tags
+            if (string.IsNullOrEmpty(response.JobTitle))
+                TryExtractOpenGraph(doc, response);
+
+            // 3. Site-specific fallbacks
             if (string.IsNullOrEmpty(response.JobTitle))
             {
-                ExtractGeneric(doc, response);
+                if (url.Contains("linkedin.com")) TryExtractLinkedIn(doc, response);
+                else if (url.Contains("indeed.com")) TryExtractIndeed(doc, response);
+                else TryExtractGeneric(doc, response);
             }
+
+            if (!string.IsNullOrEmpty(response.Description))
+                response.WorkType = DetectWorkType(response.Description);
 
             return response;
         }
         catch (Exception ex)
         {
-            return new JobExtractionResponse
+            _logger.LogWarning(ex, "Failed to scrape {Url}", url);
+            return new JobExtractionResponse();
+        }
+    }
+
+    private void TryExtractJsonLd(HtmlDocument doc, JobExtractionResponse response)
+    {
+        var scripts = doc.DocumentNode.SelectNodes("//script[@type='application/ld+json']");
+        if (scripts == null) return;
+
+        foreach (var script in scripts)
+        {
+            try
             {
-                JobTitle = "Job Title",
-                CompanyName = "Company Name",
-                Description = "Failed to extract job information",
-                Location = "Location",
-                WorkType = "Remote"
-            };
+                var json = script.InnerText.Trim();
+                using var doc2 = JsonDocument.Parse(json);
+                var root = doc2.RootElement;
+
+                var type = root.TryGetProperty("@type", out var t) ? t.GetString() : "";
+                if (type != "JobPosting") continue;
+
+                if (root.TryGetProperty("title", out var title))
+                    response.JobTitle = CleanText(title.GetString() ?? "");
+
+                if (root.TryGetProperty("hiringOrganization", out var org) &&
+                    org.TryGetProperty("name", out var orgName))
+                    response.CompanyName = CleanText(orgName.GetString() ?? "");
+
+                if (root.TryGetProperty("description", out var desc))
+                    response.Description = CleanText(StripHtml(desc.GetString() ?? ""), maxLength: 2000);
+
+                if (root.TryGetProperty("jobLocation", out var loc))
+                {
+                    if (loc.TryGetProperty("address", out var addr))
+                    {
+                        var city = addr.TryGetProperty("addressLocality", out var c) ? c.GetString() : "";
+                        var country = addr.TryGetProperty("addressCountry", out var cn) ? cn.GetString() : "";
+                        response.Location = string.Join(", ", new[] { city, country }.Where(s => !string.IsNullOrEmpty(s)));
+                    }
+                }
+
+                return; // Found a JobPosting, stop
+            }
+            catch { /* malformed JSON, skip */ }
         }
     }
 
-    private async Task<string> FetchHtmlAsync(string url)
+    private void TryExtractOpenGraph(HtmlDocument doc, JobExtractionResponse response)
     {
-        var response = await _httpClient.GetAsync(url);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync();
-    }
+        var ogTitle = GetMetaContent(doc, "og:title");
+        if (string.IsNullOrEmpty(ogTitle)) return;
 
-    private void ExtractFromLinkedIn(HtmlDocument doc, JobExtractionResponse response)
-    {
-        // LinkedIn job title
-        var titleNode = doc.DocumentNode.SelectSingleNode("//h1[@class='show-more-less-html__markup']");
-        response.JobTitle = titleNode?.InnerText?.Trim() ?? "Software Developer";
+        // Strip site name suffix: "Title at Company | LinkedIn" → "Title at Company"
+        ogTitle = Regex.Replace(ogTitle, @"\s*\|.*$", "").Trim();
+        // Strip numeric prefix from LinkedIn: "(1) Title" → "Title"
+        ogTitle = Regex.Replace(ogTitle, @"^\(\d+\)\s*", "").Trim();
 
-        // LinkedIn company name
-        var companyNode = doc.DocumentNode.SelectSingleNode("//a[@class='topcard__org-name-link']");
-        response.CompanyName = companyNode?.InnerText?.Trim() ?? "Company";
-
-        // LinkedIn description
-        var descNode = doc.DocumentNode.SelectSingleNode("//div[@class='show-more-less-html__markup']");
-        response.Description = descNode?.InnerText?.Trim() ?? "";
-
-        // LinkedIn location
-        var locationNode = doc.DocumentNode.SelectSingleNode("//span[@class='topcard__location']");
-        response.Location = locationNode?.InnerText?.Trim() ?? "";
-
-        // Try to detect work type from description
-        response.WorkType = DetectWorkType(response.Description);
-    }
-
-    private void ExtractFromIndeed(HtmlDocument doc, JobExtractionResponse response)
-    {
-        // Indeed job title
-        var titleNode = doc.DocumentNode.SelectSingleNode("//h1[@class='jobsearch-JobInfoHeader-title']");
-        response.JobTitle = titleNode?.InnerText?.Trim() ?? "Job Title";
-
-        // Indeed company name
-        var companyNode = doc.DocumentNode.SelectSingleNode("//div[@class='jobsearch-InlineCompanyRating-companyHeader']");
-        response.CompanyName = companyNode?.InnerText?.Trim() ?? "Company";
-
-        // Indeed location
-        var locationNode = doc.DocumentNode.SelectSingleNode("//div[@data-testid='jobsearch-JobInfoHeader-jobLocation']");
-        response.Location = locationNode?.InnerText?.Trim() ?? "";
-
-        // Indeed description
-        var descNode = doc.DocumentNode.SelectSingleNode("//div[@id='jobDescriptionText']");
-        response.Description = descNode?.InnerText?.Trim() ?? "";
-
-        response.WorkType = DetectWorkType(response.Description);
-    }
-
-    private void ExtractFromGlassdoor(HtmlDocument doc, JobExtractionResponse response)
-    {
-        // Glassdoor job title
-        var titleNode = doc.DocumentNode.SelectSingleNode("//h1[@class='header__h1']");
-        response.JobTitle = titleNode?.InnerText?.Trim() ?? "Job Title";
-
-        // Glassdoor company name
-        var companyNode = doc.DocumentNode.SelectSingleNode("//div[@class='EmployerProfile__name']");
-        response.CompanyName = companyNode?.InnerText?.Trim() ?? "Company";
-
-        // Glassdoor location
-        var locationNode = doc.DocumentNode.SelectSingleNode("//div[@class='JobDetails__location']");
-        response.Location = locationNode?.InnerText?.Trim() ?? "";
-
-        // Glassdoor description
-        var descNode = doc.DocumentNode.SelectSingleNode("//div[@class='JobDetails__desc']");
-        response.Description = descNode?.InnerText?.Trim() ?? "";
-
-        response.WorkType = DetectWorkType(response.Description);
-    }
-
-    private void ExtractGeneric(HtmlDocument doc, JobExtractionResponse response)
-    {
-        // Generic extraction using common patterns
-        var titleNodes = doc.DocumentNode.SelectNodes("//h1 | //h2[@class*='title'] | //title");
-        if (titleNodes != null && titleNodes.Count > 0)
+        // Try to split "Job Title at Company Name"
+        var atMatch = Regex.Match(ogTitle, @"^(.+?)\s+at\s+(.+)$", RegexOptions.IgnoreCase);
+        if (atMatch.Success)
         {
-            response.JobTitle = CleanText(titleNodes[0].InnerText);
+            response.JobTitle = atMatch.Groups[1].Value.Trim();
+            if (string.IsNullOrEmpty(response.CompanyName))
+                response.CompanyName = atMatch.Groups[2].Value.Trim();
         }
-
-        // Try to find company name
-        var companyPatterns = new[] { "company", "employer", "organization" };
-        var companyNode = titleNodes?.FirstOrDefault(n => n.InnerText.ToLower().Contains("company"));
-        if (companyNode != null)
+        else
         {
-            response.CompanyName = CleanText(companyNode.InnerText);
+            response.JobTitle = ogTitle;
         }
 
-        // Extract all text and look for description
-        var bodyNode = doc.DocumentNode.SelectSingleNode("//body");
-        if (bodyNode != null)
+        if (string.IsNullOrEmpty(response.Description))
         {
-            var fullText = bodyNode.InnerText;
-            response.Description = CleanText(fullText.Substring(0, Math.Min(1000, fullText.Length)));
+            var ogDesc = GetMetaContent(doc, "og:description");
+            if (!string.IsNullOrEmpty(ogDesc))
+                response.Description = CleanText(ogDesc, maxLength: 1000);
         }
+    }
 
-        // Look for location in common patterns
-        var textContent = doc.DocumentNode.InnerText;
-        var locationMatch = Regex.Match(textContent, @"(Location|City|Based in)[:\s]+([^,\n]+)", RegexOptions.IgnoreCase);
-        if (locationMatch.Success)
-        {
-            response.Location = CleanText(locationMatch.Groups[2].Value);
-        }
+    private void TryExtractLinkedIn(HtmlDocument doc, JobExtractionResponse response)
+    {
+        response.JobTitle = CleanText(
+            doc.DocumentNode.SelectSingleNode("//h1[contains(@class,'top-card-layout__title')]")?.InnerText
+            ?? doc.DocumentNode.SelectSingleNode("//h1")?.InnerText ?? "");
 
-        response.WorkType = DetectWorkType(response.Description);
+        response.CompanyName = CleanText(
+            doc.DocumentNode.SelectSingleNode("//a[contains(@class,'topcard__org-name-link')]")?.InnerText
+            ?? doc.DocumentNode.SelectSingleNode("//span[contains(@class,'topcard__flavor--black-link')]")?.InnerText ?? "");
+
+        response.Location = CleanText(
+            doc.DocumentNode.SelectSingleNode("//span[contains(@class,'topcard__flavor--bullet')]")?.InnerText ?? "");
+
+        response.Description = CleanText(
+            doc.DocumentNode.SelectSingleNode("//div[contains(@class,'show-more-less-html__markup')]")?.InnerText ?? "",
+            maxLength: 2000);
+    }
+
+    private void TryExtractIndeed(HtmlDocument doc, JobExtractionResponse response)
+    {
+        response.JobTitle = CleanText(
+            doc.DocumentNode.SelectSingleNode("//h1[contains(@class,'jobsearch-JobInfoHeader-title')]")?.InnerText ?? "");
+
+        response.CompanyName = CleanText(
+            doc.DocumentNode.SelectSingleNode("//div[@data-company-name='true']")?.InnerText ?? "");
+
+        response.Description = CleanText(
+            doc.DocumentNode.SelectSingleNode("//div[@id='jobDescriptionText']")?.InnerText ?? "",
+            maxLength: 2000);
+    }
+
+    private void TryExtractGeneric(HtmlDocument doc, JobExtractionResponse response)
+    {
+        response.JobTitle = CleanText(
+            doc.DocumentNode.SelectSingleNode("//h1")?.InnerText ?? "");
+
+        var bodyText = doc.DocumentNode.SelectSingleNode("//body")?.InnerText ?? "";
+        response.Description = CleanText(bodyText, maxLength: 1000);
+    }
+
+    private string? GetMetaContent(HtmlDocument doc, string property)
+    {
+        return doc.DocumentNode
+            .SelectSingleNode($"//meta[@property='{property}']")?
+            .GetAttributeValue("content", null);
+    }
+
+    private string StripHtml(string html)
+    {
+        if (string.IsNullOrEmpty(html)) return html;
+        return Regex.Replace(html, "<[^>]+>", " ");
+    }
+
+    private string CleanText(string text, int maxLength = 500)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+        text = System.Net.WebUtility.HtmlDecode(text);
+        text = Regex.Replace(text, @"\s+", " ").Trim();
+        return text.Length > maxLength ? text[..maxLength] : text;
     }
 
     private string DetectWorkType(string text)
     {
-        if (string.IsNullOrEmpty(text))
-            return "Remote";
-
-        var lowerText = text.ToLower();
-
-        if (lowerText.Contains("hybrid"))
-            return "Hybrid";
-        if (lowerText.Contains("on-site") || lowerText.Contains("onsite") || lowerText.Contains("office"))
-            return "On-site";
-        if (lowerText.Contains("remote") || lowerText.Contains("work from home"))
-            return "Remote";
-
-        return "Remote"; // Default
-    }
-
-    private string CleanText(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-            return string.Empty;
-
-        // Remove extra whitespace and HTML entities
-        text = System.Net.WebUtility.HtmlDecode(text);
-        text = Regex.Replace(text, @"\s+", " ");
-        return text.Trim();
+        var lower = text.ToLower();
+        if (lower.Contains("hybrid")) return "Hybrid";
+        if (lower.Contains("on-site") || lower.Contains("onsite") || lower.Contains("office")) return "On-site";
+        if (lower.Contains("remote") || lower.Contains("work from home")) return "Remote";
+        return "Remote";
     }
 }
