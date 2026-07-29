@@ -110,44 +110,103 @@ export class JobApplicationsComponent implements OnInit {
             return;
         }
 
-        const extracted = this.parseJobUrl(this.jobUrl);
+        const clientParsed = this.parseJobUrl(this.jobUrl);
+        const cleanLink = clientParsed.jobLink ?? this.jobUrl;
+
+        // Client-side parsing got a title — use it instantly, no backend call needed
+        if (clientParsed.jobTitle) {
+            this.applyExtracted({ ...clientParsed, jobLink: cleanLink });
+            return;
+        }
+
+        // LinkedIn blocks server-side scraping — skip the backend call entirely
+        if (cleanLink.includes('linkedin.com')) {
+            this.applyExtracted({ ...clientParsed, jobLink: cleanLink });
+            return;
+        }
+
+        // For other sites, ask the backend to scrape the page
+        this.isExtracting = true;
+        this.extractionError = '';
+
+        this.jobService.extractJobInfo(cleanLink).subscribe({
+            next: (data) => {
+                this.applyExtracted({
+                    jobTitle: data.jobTitle ?? '',
+                    companyName: clientParsed.companyName || data.companyName || '',
+                    description: data.description ?? '',
+                    location: data.location ?? '',
+                    workType: data.workType ?? 'Remote',
+                    jobLink: cleanLink
+                });
+            },
+            error: () => {
+                this.applyExtracted({ ...clientParsed, jobLink: cleanLink });
+            }
+        });
+    }
+
+    private applyExtracted(data: Partial<JobApplication>): void {
         this.newJob = {
             ...this.initializeNewJob(),
-            ...extracted,
-            jobLink: this.jobUrl,
+            ...data,
             applicationStatus: 'Applied',
         };
         this.jobUrl = '';
-        this.extractionError = extracted.jobTitle
+        this.isExtracting = false;
+        this.extractionError = data.jobTitle
             ? 'Form prepared! Review the extracted details and fill in anything missing.'
-            : 'Form prepared! Fill in the job title and company name, then paste the description.';
+            : 'Form prepared! Open the job link to copy the title and company, then fill them in below.';
     }
 
     private parseJobUrl(url: string): Partial<JobApplication> {
         try {
             const parsed = new URL(url);
             const hostParts = parsed.hostname.split('.');
+            const domain = hostParts[hostParts.length - 2];
 
-            // Extract company from domain, e.g. "cisco" from "careers.cisco.com"
+            // Job boards — don't use their name as the company
+            const jobBoards = new Set(['linkedin', 'indeed', 'glassdoor', 'monster', 'ziprecruiter', 'seek', 'careers']);
+
             let companyName = '';
-            if (hostParts.length >= 2) {
-                const raw = hostParts[hostParts.length - 2];
-                companyName = raw.charAt(0).toUpperCase() + raw.slice(1);
+            if (!jobBoards.has(domain)) {
+                companyName = domain.charAt(0).toUpperCase() + domain.slice(1);
             }
 
-            // Extract job title from last non-numeric path segment
-            const pathParts = parsed.pathname.split('/').filter(p => p.length > 0);
             let jobTitle = '';
-            for (let i = pathParts.length - 1; i >= 0; i--) {
-                if (!/^\d+$/.test(pathParts[i])) {
-                    jobTitle = pathParts[i]
-                        .replace(/-/g, ' ')
-                        .replace(/\b\w/g, c => c.toUpperCase());
-                    break;
+            let jobLink = url;
+
+            if (parsed.hostname.includes('linkedin.com')) {
+                // LinkedIn search results: extract keywords + build canonical job URL
+                if (parsed.pathname.includes('search')) {
+                    const keywords = parsed.searchParams.get('keywords');
+                    if (keywords) jobTitle = keywords;
+
+                    const jobId = parsed.searchParams.get('currentJobId');
+                    if (jobId) jobLink = `https://www.linkedin.com/jobs/view/${jobId}/`;
+                }
+                // LinkedIn direct job URL: /jobs/view/{id}
+                else if (parsed.pathname.includes('/jobs/view/')) {
+                    const parts = parsed.pathname.split('/').filter(p => p);
+                    const viewIdx = parts.indexOf('view');
+                    if (viewIdx >= 0 && parts[viewIdx + 1]) {
+                        jobLink = `https://www.linkedin.com/jobs/view/${parts[viewIdx + 1]}/`;
+                    }
+                }
+            } else {
+                // Generic URL: extract title from last non-numeric path segment
+                const pathParts = parsed.pathname.split('/').filter(p => p.length > 0);
+                for (let i = pathParts.length - 1; i >= 0; i--) {
+                    if (!/^\d+$/.test(pathParts[i]) && pathParts[i] !== 'job' && pathParts[i] !== 'jobs') {
+                        jobTitle = pathParts[i]
+                            .replace(/[-_]/g, ' ')
+                            .replace(/\b\w/g, c => c.toUpperCase());
+                        break;
+                    }
                 }
             }
 
-            return { jobTitle, companyName };
+            return { jobTitle, companyName, jobLink };
         } catch {
             return {};
         }
