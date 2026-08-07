@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { JobApplication } from '../../models/job-application.model';
 import { JobApplicationService } from '../../services/job-application.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
     selector: 'app-job-applications',
@@ -26,7 +27,7 @@ export class JobApplicationsComponent implements OnInit {
     workTypes = ['On-site', 'Remote', 'Hybrid'];
     applicationStatuses = ['Applied', 'In Progress', 'Interview', 'Offer', 'Rejected'];
 
-    constructor(private jobService: JobApplicationService) { }
+    constructor(private jobService: JobApplicationService, public auth: AuthService) { }
 
     ngOnInit(): void {
         this.loadJobs();
@@ -210,6 +211,10 @@ export class JobApplicationsComponent implements OnInit {
         } catch {
             return {};
         }
+    }
+
+    logout(): void {
+        this.auth.logout();
     }
 
     filterJobs(): void {
