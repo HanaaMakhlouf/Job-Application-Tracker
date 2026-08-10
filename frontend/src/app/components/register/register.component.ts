@@ -34,7 +34,7 @@ export class RegisterComponent {
         this.loading = true;
         this.error = '';
 
-        this.auth.register({ name: this.name, email: this.email, password: this.password }).subscribe({
+        this.auth.register(this.email, this.password, this.name).subscribe({
             next: () => this.router.navigate(['/']),
             error: (err) => {
                 this.error = err.status === 409
