@@ -23,6 +23,7 @@ export class JobApplicationsComponent implements OnInit {
     jobUrl = '';
     isExtracting = false;
     extractionError = '';
+    currentUserName = '';
 
     workTypes = ['On-site', 'Remote', 'Hybrid'];
     applicationStatuses = ['Applied', 'In Progress', 'Interview', 'Offer', 'Rejected'];
@@ -31,6 +32,7 @@ export class JobApplicationsComponent implements OnInit {
 
     ngOnInit(): void {
         this.loadJobs();
+        this.auth.getCurrentUser().then(user => this.currentUserName = user?.name ?? '');
     }
 
     loadJobs(): void {

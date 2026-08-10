@@ -2,7 +2,7 @@
     <div class="app-header">
         <h1>Job Application Tracker</h1>
         <div class="user-info">
-            <span>{{ auth.getCurrentUser()?.name }}</span>
+            <span>{{ currentUserName }}</span>
             <button type="button" class="btn btn-secondary btn-sm" (click)="logout()">Sign Out</button>
         </div>
     </div>
